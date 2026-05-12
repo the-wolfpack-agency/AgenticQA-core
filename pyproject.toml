@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agenticqa-core"
+version = "0.1.0"
+description = "Wolfpack AgenticQA core scanners, probes, governance utilities, and reusable GitHub Actions workflows."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+authors = [{ name = "Wolfpack Agency", email = "engineering@thewolfpack.agency" }]
+keywords = ["security", "dast", "scanning", "governance", "ci"]
+classifiers = [
+    "License :: Other/Proprietary License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Intended Audience :: Developers",
+    "Topic :: Security",
+]
+dependencies = [
+    "requests>=2.31",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.5",
+    "requests-mock>=1.11",
+]
+
+[project.scripts]
+agenticqa = "agenticqa_core.cli:main"
+agenticqa-probe-headers = "agenticqa_core.probes.security_headers:main"
+agenticqa-probe-errors = "agenticqa_core.probes.error_disclosure:main"
+agenticqa-branch-protection = "agenticqa_core.governance.branch_protection:main"
+agenticqa-secret-age = "agenticqa_core.governance.secret_age:main"
+agenticqa-audit-app = "agenticqa_core.scanners.app_security:main"
+agenticqa-audit-history = "agenticqa_core.scanners.history_exposure:main"
+agenticqa-sre-autofix = "agenticqa_core.scanners.sre_autofix:main"
+agenticqa-sdet-trend = "agenticqa_core.benchmarks.sdet_trend:main"
+
+[project.urls]
+Homepage = "https://github.com/the-wolfpack-agency/AgenticQA-core"
+Repository = "https://github.com/the-wolfpack-agency/AgenticQA-core"
+
+[tool.setuptools.packages.find]
+include = ["agenticqa_core*"]
+exclude = ["tests*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+    "E501",  # line too long — many regex patterns intentionally long
+    "B008",  # default in function arg — fine for argparse defaults
+    "UP007", # X | Y vs Optional[X] — we still support 3.10
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q --strict-markers"

@@ -1,0 +1,72 @@
+name: AgenticQA Pipeline Validation (reusable)
+
+# Runs the AgenticQA app-security + history-exposure audits against
+# the caller repo. Designed for nightly + pre-merge use.
+
+on:
+  workflow_call:
+    inputs:
+      severity:
+        description: "Minimum severity to fail on (high|medium|low)"
+        required: false
+        type: string
+        default: "high"
+      python_version:
+        required: false
+        type: string
+        default: "3.13"
+      fail_on_findings:
+        description: "Fail the job when audits report any finding at >= severity"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout caller repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # history-exposure scan needs full git log
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Install AgenticQA-core
+        run: pip install "git+https://github.com/the-wolfpack-agency/AgenticQA-core.git@main"
+
+      - name: App-security audit
+        id: app
+        run: |
+          agenticqa-audit-app --path . --json --severity ${{ inputs.severity }} > app-audit.json
+          count=$(python -c "import json; print(json.load(open('app-audit.json')).get('finding_count', 0))")
+          echo "finding_count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: History-exposure audit
+        id: history
+        run: |
+          agenticqa-audit-history --path . --json > history-audit.json
+          count=$(python -c "import json; print(json.load(open('history-audit.json')).get('finding_count', 0))")
+          echo "finding_count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Upload audit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-validation-reports
+          path: |
+            app-audit.json
+            history-audit.json
+          retention-days: 90
+
+      - name: Fail if findings detected
+        if: inputs.fail_on_findings && (steps.app.outputs.finding_count != '0' || steps.history.outputs.finding_count != '0')
+        run: |
+          echo "::error::AgenticQA pipeline validation found issues — app=${{ steps.app.outputs.finding_count }} history=${{ steps.history.outputs.finding_count }}"
+          exit 1

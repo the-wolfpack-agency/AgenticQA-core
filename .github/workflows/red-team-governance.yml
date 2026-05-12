@@ -1,0 +1,72 @@
+name: AgenticQA Red-Team Governance (reusable)
+
+# Asserts branch protection on the caller repo matches the
+# AgenticQA-core hardened baseline. Without `apply`, reports drift
+# and fails the job. With `apply: true`, PUTs the desired config.
+
+on:
+  workflow_call:
+    inputs:
+      repo:
+        description: "owner/name of repo to check (defaults to caller)"
+        required: false
+        type: string
+        default: ""
+      branch:
+        description: "Branch to enforce"
+        required: false
+        type: string
+        default: "main"
+      apply:
+        description: "Apply desired config (requires admin token)"
+        required: false
+        type: boolean
+        default: false
+      python_version:
+        required: false
+        type: string
+        default: "3.13"
+    secrets:
+      ADMIN_TOKEN:
+        description: "PAT with admin:repo scope; required when apply=true"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  governance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout AgenticQA-core
+        uses: actions/checkout@v4
+        with:
+          repository: the-wolfpack-agency/AgenticQA-core
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Install AgenticQA-core
+        run: pip install -e .
+
+      - name: Resolve target repo
+        id: resolve
+        run: |
+          target="${{ inputs.repo }}"
+          if [ -z "$target" ]; then
+            target="${{ github.repository }}"
+          fi
+          echo "repo=$target" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce branch protection
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADMIN_TOKEN || github.token }}
+        run: |
+          flags="--repo ${{ steps.resolve.outputs.repo }} --branch ${{ inputs.branch }}"
+          if [ "${{ inputs.apply }}" = "true" ]; then
+            flags="$flags --apply"
+          fi
+          agenticqa-branch-protection $flags

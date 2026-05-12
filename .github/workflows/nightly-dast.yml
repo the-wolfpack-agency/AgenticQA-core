@@ -1,0 +1,79 @@
+name: AgenticQA Nightly DAST (reusable)
+
+# Probes the caller's deployed URL for missing security headers and
+# error-page disclosure. Designed to be called via `workflow_call`
+# from every Wolfpack product repo.
+#
+# Usage from a caller repo:
+#
+#   jobs:
+#     dast:
+#       uses: the-wolfpack-agency/AgenticQA-core/.github/workflows/nightly-dast.yml@main
+#       with:
+#         prod_url: ${{ vars.PROD_URL }}
+
+on:
+  workflow_call:
+    inputs:
+      prod_url:
+        description: "Target URL to scan"
+        required: true
+        type: string
+      python_version:
+        description: "Python version for the runner"
+        required: false
+        type: string
+        default: "3.13"
+    secrets:
+      SMOKE_TEST_EMAIL:
+        required: false
+      SMOKE_TEST_PASSWORD:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  dast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout AgenticQA-core
+        uses: actions/checkout@v4
+        with:
+          repository: the-wolfpack-agency/AgenticQA-core
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Install AgenticQA-core
+        run: pip install -e .
+
+      - name: Probe security headers
+        id: headers
+        run: |
+          set -e
+          agenticqa-probe-headers "${{ inputs.prod_url }}" > headers-report.json
+          cat headers-report.json
+          missing=$(python -c "import json; d=json.load(open('headers-report.json')); print(d.get('missing_count', 0))")
+          echo "missing_count=$missing" >> "$GITHUB_OUTPUT"
+          if [ "$missing" -gt 0 ]; then
+            echo "::warning::$missing security headers missing on ${{ inputs.prod_url }}"
+          fi
+
+      - name: Probe error-page disclosure
+        run: |
+          agenticqa-probe-errors "${{ inputs.prod_url }}" > errors-report.json || true
+          cat errors-report.json
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dast-reports
+          path: |
+            headers-report.json
+            errors-report.json
+          retention-days: 30

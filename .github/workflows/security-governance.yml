@@ -1,0 +1,72 @@
+name: AgenticQA Security Governance (reusable)
+
+# Lists every GitHub Actions / Dependabot secret on the caller repo
+# and reports any whose age exceeds the rotation TTL.
+
+on:
+  workflow_call:
+    inputs:
+      repo:
+        description: "owner/name of repo to check (defaults to caller)"
+        required: false
+        type: string
+        default: ""
+      max_age_days:
+        description: "Maximum allowed secret age in days"
+        required: false
+        type: number
+        default: 90
+      python_version:
+        required: false
+        type: string
+        default: "3.13"
+    secrets:
+      ADMIN_TOKEN:
+        description: "PAT with secrets:read; falls back to GITHUB_TOKEN"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  secret-age:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout AgenticQA-core
+        uses: actions/checkout@v4
+        with:
+          repository: the-wolfpack-agency/AgenticQA-core
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Install AgenticQA-core
+        run: pip install -e .
+
+      - name: Resolve target repo
+        id: resolve
+        run: |
+          target="${{ inputs.repo }}"
+          if [ -z "$target" ]; then
+            target="${{ github.repository }}"
+          fi
+          echo "repo=$target" >> "$GITHUB_OUTPUT"
+
+      - name: Report secret age
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADMIN_TOKEN || github.token }}
+        run: |
+          agenticqa-secret-age \
+            --repo ${{ steps.resolve.outputs.repo }} \
+            --max-age-days ${{ inputs.max_age_days }} | tee secret-age-report.json
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: secret-age-report
+          path: secret-age-report.json
+          retention-days: 90

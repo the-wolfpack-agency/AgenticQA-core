@@ -1,0 +1,81 @@
+name: AgenticQA SDET Trend Benchmark (reusable)
+
+# Runs the caller repo's jest suite (in --json mode) and emits a
+# trend-record JSONL line for downstream tracking. Caller passes
+# the jest command + checkout repo via inputs.
+
+on:
+  workflow_call:
+    inputs:
+      jest_command:
+        description: "Command that produces jest-results.json (caller-side)"
+        required: false
+        type: string
+        default: "npx jest --json --outputFile=jest-results.json"
+      node_version:
+        required: false
+        type: string
+        default: "20"
+      python_version:
+        required: false
+        type: string
+        default: "3.13"
+      working_directory:
+        description: "Path within caller repo to run the jest command from"
+        required: false
+        type: string
+        default: "."
+      install_command:
+        description: "Install command for the JS project (e.g. npm ci, pnpm i)"
+        required: false
+        type: string
+        default: "npm ci"
+
+permissions:
+  contents: read
+
+jobs:
+  trend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout caller repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node ${{ inputs.node_version }}
+        uses: actions/setup-node@v4
+        with:
+          node_version: ${{ inputs.node_version }}
+          cache: npm
+
+      - name: Setup Python ${{ inputs.python_version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Install AgenticQA-core (from GitHub)
+        run: pip install "git+https://github.com/the-wolfpack-agency/AgenticQA-core.git@main"
+
+      - name: Install caller deps
+        working-directory: ${{ inputs.working_directory }}
+        run: ${{ inputs.install_command }}
+
+      - name: Run jest with JSON output
+        working-directory: ${{ inputs.working_directory }}
+        run: ${{ inputs.jest_command }}
+        continue-on-error: true
+
+      - name: Record SDET trend
+        working-directory: ${{ inputs.working_directory }}
+        run: |
+          agenticqa-sdet-trend jest-results.json | tee -a sdet-trend.jsonl
+
+      - name: Upload trend record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdet-trend-${{ github.run_id }}
+          path: |
+            ${{ inputs.working_directory }}/sdet-trend.jsonl
+            ${{ inputs.working_directory }}/jest-results.json
+          retention-days: 90
