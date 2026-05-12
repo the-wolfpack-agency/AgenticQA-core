@@ -97,7 +97,7 @@ def file_role(path: Path) -> str:
 
 # Pattern regexes
 RE_REQUIRE_AUTH = re.compile(
-    r"\b(requireAuth|requireRole|requireCapability|getServerSession)\s*\("
+    r"\b(requireAuth|requireRole|requireCapability|requireWolfpackStaff|requireAgencyAuth|getServerSession)\s*\("
 )
 PRELOGIN_ROUTE_ALLOW = (
     "/api/admin/accept-invite/",
