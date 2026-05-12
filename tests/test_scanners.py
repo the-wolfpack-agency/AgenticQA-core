@@ -6,7 +6,13 @@ import subprocess
 
 import pytest
 
-from agenticqa_core.scanners import app_security, history_exposure, sre_autofix
+from agenticqa_core.scanners import (
+    app_security,
+    app_security_pragma_tests,
+    cicd_security,
+    history_exposure,
+    sre_autofix,
+)
 
 # ─── app_security ──────────────────────────────────────────────────
 
@@ -156,3 +162,86 @@ def test_sre_autofix_detect_stack_unknown(tmp_path):
 def test_sre_autofix_fixers_registry_complete():
     for stack in ("typescript", "python", "go", "rust", "ruby", "java", "php"):
         assert stack in sre_autofix.FIXERS
+
+
+# --- cicd_security -----------------------------------------------------
+
+
+def test_cicd_security_empty_repo_returns_no_workflow_findings(tmp_path):
+    """Empty repo - no workflows, no package.json - still flags G12 (CODEOWNERS missing)."""
+    result = cicd_security.audit(tmp_path)
+    # G12 fires when CODEOWNERS is missing - that's expected, useful baseline.
+    codes = {f["pattern_id"] for f in result["findings"]}
+    assert "G12" in codes
+
+
+def test_cicd_security_flags_pull_request_target_g1(tmp_path):
+    wf = tmp_path / ".github" / "workflows"
+    wf.mkdir(parents=True)
+    (wf / "danger.yml").write_text(
+        "name: x\n"
+        "on:\n"
+        "  pull_request_target:\n"
+        "    types: [opened]\n"
+        "permissions:\n"
+        "  contents: read\n"
+        "jobs:\n"
+        "  j:\n"
+        "    runs-on: ubuntu-latest\n"
+        "    steps: [{ run: 'true' }]\n"
+    )
+    result = cicd_security.audit(tmp_path)
+    codes = {f["pattern_id"] for f in result["findings"]}
+    assert "G1" in codes
+
+
+def test_cicd_security_g1_suppressed_by_pragma(tmp_path):
+    wf = tmp_path / ".github" / "workflows"
+    wf.mkdir(parents=True)
+    (wf / "safe.yml").write_text(
+        "name: x\n"
+        "# audit-safe: G1 reason=\"never checks out PR head\"\n"
+        "on:\n"
+        "  pull_request_target:\n"
+        "    types: [opened]\n"
+        "permissions:\n"
+        "  contents: read\n"
+        "jobs:\n"
+        "  j:\n"
+        "    runs-on: ubuntu-latest\n"
+        "    steps: [{ run: 'true' }]\n"
+    )
+    result = cicd_security.audit(tmp_path)
+    g1 = [f for f in result["findings"] if f["pattern_id"] == "G1"]
+    assert not g1, f"expected G1 suppressed by pragma, got {g1}"
+
+
+def test_cicd_security_flags_unpinned_action_g3(tmp_path):
+    wf = tmp_path / ".github" / "workflows"
+    wf.mkdir(parents=True)
+    (wf / "u.yml").write_text(
+        "name: x\n"
+        "on: [push]\n"
+        "permissions:\n"
+        "  contents: read\n"
+        "jobs:\n"
+        "  j:\n"
+        "    runs-on: ubuntu-latest\n"
+        "    steps:\n"
+        "      - uses: actions/checkout@v4\n"
+    )
+    result = cicd_security.audit(tmp_path)
+    g3 = [f for f in result["findings"] if f["pattern_id"] == "G3"]
+    assert g3
+
+
+# --- app_security_pragma_tests ----------------------------------------
+
+
+def test_app_security_pragma_self_tests_pass():
+    """The pragma self-tests must pass against the bundled app_security module."""
+    assert app_security_pragma_tests.run_self_tests() is True
+
+
+def test_app_security_pragma_main_returns_zero():
+    assert app_security_pragma_tests.main([]) == 0
