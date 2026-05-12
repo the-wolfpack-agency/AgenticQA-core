@@ -1,0 +1,87 @@
+name: AgenticQA SDET Agent (reusable)
+
+# Downloads test-result artifacts produced by an earlier matrix job in the
+# caller's pipeline and writes a structured analysis to the run summary.
+# Coverage-gap analysis assumes Next.js-style layout (src/app/api, tests/);
+# missing directories degrade gracefully to zero counts rather than failing.
+
+on:
+  workflow_call:
+    inputs:
+      artifact_pattern:
+        description: 'Glob pattern for test-result artifacts to download.'
+        required: false
+        default: 'test-results-shard-*'
+        type: string
+      node_version:
+        description: 'Node.js version to install (kept for npm-ci hooks the caller may need).'
+        required: false
+        default: '22'
+        type: string
+      run_npm_ci:
+        description: 'Run npm ci before analysis (set false for non-Node repos).'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  sdet-agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    name: "SDET Agent"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
+        if: ${{ inputs.run_npm_ci }}
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: npm
+
+      - name: npm ci
+        if: ${{ inputs.run_npm_ci }}
+        run: npm ci
+
+      - name: Download test results
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
+        with:
+          pattern: ${{ inputs.artifact_pattern }}
+          path: ./test-results-data
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: SDET Analysis
+        run: |
+          echo "## SDET Agent Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f test-results-data/playwright-output.log ]; then
+            TOTAL=$(grep -c "✓\|✗\|passed\|failed" test-results-data/playwright-output.log 2>/dev/null || echo "0")
+            PASSED=$(grep -c "passed" test-results-data/playwright-output.log 2>/dev/null || echo "0")
+            FAILED=$(grep -c "failed" test-results-data/playwright-output.log 2>/dev/null || echo "0")
+            echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Test lines | ${TOTAL} |" >> $GITHUB_STEP_SUMMARY
+            echo "| Passed refs | ${PASSED} |" >> $GITHUB_STEP_SUMMARY
+            echo "| Failed refs | ${FAILED} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No test results artifact available" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Coverage gap analysis
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Coverage Gaps" >> $GITHUB_STEP_SUMMARY
+
+          TESTED_ROUTES=$(grep -r "page.goto\|request.get\|request.post" tests/ --include="*.spec.ts" -h 2>/dev/null | grep -oP '"/[^"]*"' | sort -u | wc -l || echo "0")
+          TOTAL_API_ROUTES=$(find src/app/api -name "route.ts" 2>/dev/null | wc -l || echo "0")
+          TOTAL_PAGES=$(find src/app -name "page.tsx" -not -path "*/api/*" 2>/dev/null | wc -l || echo "0")
+
+          echo "| Asset | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| API routes | ${TOTAL_API_ROUTES} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Pages | ${TOTAL_PAGES} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tested route refs | ${TESTED_ROUTES} |" >> $GITHUB_STEP_SUMMARY

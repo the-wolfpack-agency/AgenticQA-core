@@ -1,0 +1,64 @@
+name: AgenticQA Compliance Agent (reusable)
+
+# Runs lightweight grep-based compliance checks against the caller's source
+# tree.  Posts findings to the run summary.  This is the "agent" pass that
+# complements the codified agenticqa-audit-app / agenticqa-audit-history
+# scanners (see full-audit-suite.yml) - it surfaces noun-level signals rather
+# than line-by-line findings.
+
+on:
+  workflow_call:
+    inputs:
+      src_path:
+        description: 'Path (relative to the caller repo) to scan.'
+        required: false
+        default: 'src/'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  compliance-agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    name: "Compliance Agent"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Compliance analysis
+        env:
+          SRC: ${{ inputs.src_path }}
+        run: |
+          echo "## Compliance Agent Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Security headers check
+          echo "### Security Patterns" >> $GITHUB_STEP_SUMMARY
+          HEADERS_FILE=$(find "$SRC" -name "middleware.ts" -o -name "next.config.*" 2>/dev/null | head -1)
+          if [ -n "$HEADERS_FILE" ]; then
+            for header in "X-Frame-Options" "X-Content-Type-Options" "Strict-Transport-Security" "Content-Security-Policy"; do
+              if grep -rq "$header" "$SRC" next.config.* 2>/dev/null; then
+                echo "- $header: configured" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "- $header: **missing**" >> $GITHUB_STEP_SUMMARY
+              fi
+            done
+          fi
+
+          # PII protection check
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### PII Protection" >> $GITHUB_STEP_SUMMARY
+          SSN_REFS=$(grep -rn "ssn\|social.*security\|SSN" "$SRC" --include="*.ts" --include="*.tsx" -l 2>/dev/null | wc -l || echo "0")
+          ENCRYPT_REFS=$(grep -rn "encrypt\|AES\|cipher" "$SRC" --include="*.ts" --include="*.tsx" -l 2>/dev/null | wc -l || echo "0")
+          echo "- Files referencing SSN/PII: ${SSN_REFS}" >> $GITHUB_STEP_SUMMARY
+          echo "- Files with encryption: ${ENCRYPT_REFS}" >> $GITHUB_STEP_SUMMARY
+
+          # Env var leak check
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Secret Exposure" >> $GITHUB_STEP_SUMMARY
+          NEXT_PUBLIC_SECRETS=$(grep -rn "NEXT_PUBLIC.*SECRET\|NEXT_PUBLIC.*KEY\|NEXT_PUBLIC.*PASSWORD" "$SRC" .env* 2>/dev/null | wc -l || echo "0")
+          echo "- NEXT_PUBLIC_ secret leaks: ${NEXT_PUBLIC_SECRETS}" >> $GITHUB_STEP_SUMMARY
+          if [ "$NEXT_PUBLIC_SECRETS" -gt 0 ]; then
+            echo "::warning::Potential secret exposure via NEXT_PUBLIC_ env vars"
+          fi

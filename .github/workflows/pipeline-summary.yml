@@ -1,0 +1,128 @@
+name: AgenticQA Pipeline Summary (reusable)
+
+# Aggregates upstream job results into a single Markdown table on the run
+# summary.  Inputs are strings (`success`, `failure`, `cancelled`, `skipped`,
+# or the empty string when a job wasn't part of the run).
+#
+# Any non-empty input listed in `gating_jobs` whose value is `failure` causes
+# this workflow to fail - matching the previous inline pipeline-summary.
+
+on:
+  workflow_call:
+    inputs:
+      pipeline_rescue_result:
+        required: false
+        default: ''
+        type: string
+      lint_result:
+        required: false
+        default: ''
+        type: string
+      linting_fix_result:
+        required: false
+        default: ''
+        type: string
+      phase_1_testing_result:
+        required: false
+        default: ''
+        type: string
+      phase_1_compliance_result:
+        required: false
+        default: ''
+        type: string
+      shadow_verification_result:
+        required: false
+        default: ''
+        type: string
+      load_baseline_result:
+        required: false
+        default: ''
+        type: string
+      sdet_agent_result:
+        required: false
+        default: ''
+        type: string
+      compliance_agent_result:
+        required: false
+        default: ''
+        type: string
+      fullstack_agent_result:
+        required: false
+        default: ''
+        type: string
+      sre_agent_result:
+        required: false
+        default: ''
+        type: string
+      pipeline_health_result:
+        required: false
+        default: ''
+        type: string
+      gating_jobs:
+        description: 'Comma-separated logical job names whose `failure` value causes this summary to fail. Defaults to the historical wolfpack-auto gating set.'
+        required: false
+        default: 'lint,phase_1_testing,phase_1_compliance,shadow_verification'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  pipeline-summary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    name: "Pipeline Summary"
+    steps:
+      - name: Generate summary
+        env:
+          PIPELINE_RESCUE: ${{ inputs.pipeline_rescue_result }}
+          LINT: ${{ inputs.lint_result }}
+          LINTING_FIX: ${{ inputs.linting_fix_result }}
+          PHASE_1_TESTING: ${{ inputs.phase_1_testing_result }}
+          PHASE_1_COMPLIANCE: ${{ inputs.phase_1_compliance_result }}
+          SHADOW_VERIFICATION: ${{ inputs.shadow_verification_result }}
+          LOAD_BASELINE: ${{ inputs.load_baseline_result }}
+          SDET_AGENT: ${{ inputs.sdet_agent_result }}
+          COMPLIANCE_AGENT: ${{ inputs.compliance_agent_result }}
+          FULLSTACK_AGENT: ${{ inputs.fullstack_agent_result }}
+          SRE_AGENT: ${{ inputs.sre_agent_result }}
+          PIPELINE_HEALTH: ${{ inputs.pipeline_health_result }}
+          GATING: ${{ inputs.gating_jobs }}
+        run: |
+          {
+            echo "## AgenticQA Full Pipeline Results"
+            echo ""
+            echo "| Phase | Job | Status |"
+            echo "|-------|-----|--------|"
+            echo "| 0 | Pipeline Health Check | ${PIPELINE_RESCUE:-skipped} |"
+            echo "| 0 | SRE Linting Auto-Fix | ${LINTING_FIX:-skipped} |"
+            echo "| 0 | Code Linting | ${LINT:-skipped} |"
+            echo "| 1 | Consolidated Testing | ${PHASE_1_TESTING:-skipped} |"
+            echo "| 1 | Security & Accessibility | ${PHASE_1_COMPLIANCE:-skipped} |"
+            echo "| 1 | Shadow Mode Verification | ${SHADOW_VERIFICATION:-skipped} |"
+            echo "| 1 | Load Baseline | ${LOAD_BASELINE:-skipped} |"
+            echo "| 1 | SDET Agent | ${SDET_AGENT:-skipped} |"
+            echo "| 1 | Compliance Agent | ${COMPLIANCE_AGENT:-skipped} |"
+            echo "| 2 | Fullstack Agent | ${FULLSTACK_AGENT:-skipped} |"
+            echo "| 3 | SRE Agent | ${SRE_AGENT:-skipped} |"
+            echo "| Final | Health Verification | ${PIPELINE_HEALTH:-skipped} |"
+            echo ""
+          } >> $GITHUB_STEP_SUMMARY
+
+          FAILED=false
+          IFS=',' read -ra GATES <<< "$GATING"
+          for gate in "${GATES[@]}"; do
+            # Map logical name (lint, phase_1_testing, ...) to env var (LINT, PHASE_1_TESTING, ...)
+            var=$(echo "$gate" | tr 'a-z' 'A-Z')
+            val=$(eval "echo \${$var}")
+            if [ "$val" = "failure" ]; then
+              echo "::error::Gating job '$gate' failed"
+              FAILED=true
+            fi
+          done
+
+          if [ "$FAILED" = "true" ]; then
+            echo "**RESULT: FAILED - do not deploy**" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "**RESULT: ALL PHASES PASSED - safe to deploy**" >> $GITHUB_STEP_SUMMARY

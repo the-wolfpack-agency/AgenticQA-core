@@ -1,0 +1,59 @@
+name: AgenticQA Pipeline Health Check (reusable)
+
+# Validates the caller repo's workflow YAMLs and guards against runaway
+# auto-fix / workflow-repair commit loops.  Checks out the caller repo at
+# $GITHUB_WORKSPACE; no caller-specific assumptions beyond `.github/workflows/`
+# being conventional.
+
+on:
+  workflow_call:
+    inputs:
+      repair_loop_threshold:
+        description: 'Fail when this many recent commits look like auto-fix repairs.'
+        required: false
+        default: 3
+        type: number
+      fetch_depth:
+        description: 'git fetch-depth for the health-check checkout.'
+        required: false
+        default: 0
+        type: number
+
+permissions:
+  contents: read
+
+jobs:
+  pipeline-rescue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    name: "Pipeline Health Check"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: ${{ inputs.fetch_depth }}
+
+      - name: Validate workflow YAML
+        run: |
+          pip install pyyaml -q
+          VALID=true
+          for file in .github/workflows/*.yml; do
+            if [ -f "$file" ]; then
+              if python3 -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]))" "$file" 2>&1; then
+                echo "  $file valid"
+              else
+                echo "  $file INVALID"
+                VALID=false
+              fi
+            fi
+          done
+          [ "$VALID" = true ] || exit 1
+
+      - name: Check for repair loops
+        run: |
+          REPAIR_COUNT=$(git log --oneline -10 | grep -c "auto-fix\|workflow repair" || true)
+          THRESHOLD="${{ inputs.repair_loop_threshold }}"
+          if [ "$REPAIR_COUNT" -gt "$THRESHOLD" ]; then
+            echo "::error::Too many consecutive auto-fix commits (${REPAIR_COUNT} > ${THRESHOLD}) - possible infinite loop"
+            exit 1
+          fi
+          echo "Pipeline health: OK (${REPAIR_COUNT} recent repairs, threshold ${THRESHOLD})"

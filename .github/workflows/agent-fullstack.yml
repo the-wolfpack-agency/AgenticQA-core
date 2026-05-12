@@ -1,0 +1,75 @@
+name: AgenticQA Fullstack Agent (reusable)
+
+# Downloads test-failure artifacts from earlier matrix jobs, surfaces them
+# in the run summary, and (optionally) verifies the caller's `npm run build`
+# still passes with an empty DATABASE_URL (shadow-mode build).
+
+on:
+  workflow_call:
+    inputs:
+      artifact_pattern:
+        description: 'Glob pattern for test-failure artifacts to download.'
+        required: false
+        default: 'test-failures-shard-*'
+        type: string
+      verify_build:
+        description: 'Run npm run build with DATABASE_URL empty to verify production build still passes.'
+        required: false
+        default: true
+        type: boolean
+      node_version:
+        description: 'Node.js version to install.'
+        required: false
+        default: '22'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  fullstack-agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    name: "Fullstack Agent"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Download test failures
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
+        with:
+          pattern: ${{ inputs.artifact_pattern }}
+          path: ./test-failures
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Analyze and (optionally) verify build
+        env:
+          VERIFY_BUILD: ${{ inputs.verify_build }}
+        run: |
+          echo "## Fullstack Agent" >> $GITHUB_STEP_SUMMARY
+
+          if [ -d test-failures ] && [ "$(ls -A test-failures 2>/dev/null)" ]; then
+            echo "### Test Failures Detected" >> $GITHUB_STEP_SUMMARY
+            cat test-failures/*.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null || true
+
+            if [ "$VERIFY_BUILD" = "true" ]; then
+              echo "### Build Verification" >> $GITHUB_STEP_SUMMARY
+              if DATABASE_URL= npm run build 2>&1; then
+                echo "- Production build: PASS" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "- Production build: **FAIL**" >> $GITHUB_STEP_SUMMARY
+                echo "::error::Production build failed"
+              fi
+            fi
+          else
+            echo "No test failures to fix - all clear" >> $GITHUB_STEP_SUMMARY
+          fi
