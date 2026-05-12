@@ -165,11 +165,42 @@ def _scan_source(root: Path) -> list[Finding]:
     return findings
 
 
-def audit(root: Path | str = ".", *, since: str | None = None) -> dict:
+def audit(
+    root: Path | str = ".",
+    *,
+    since: str | None = None,
+    allow_commits: list[str] | None = None,
+) -> dict:
+    """Audit a repo for sensitive-name exposure.
+
+    `allow_commits`: list of commit SHAs to suppress H1/H2/H3 findings for.
+    Use this for known-legacy commits that can't be rewritten because the
+    branch is shared / protected. Match by prefix — 12-char SHAs OK.
+    """
     root = Path(root).resolve()
     findings: list[Finding] = []
     findings.extend(_scan_commits(root, since))
     findings.extend(_scan_source(root))
+
+    if allow_commits:
+        allow = tuple(c.strip() for c in allow_commits if c.strip())
+        before = len(findings)
+        findings = [
+            f for f in findings
+            if not (
+                f.where == "commit"
+                and any(f.ref.startswith(prefix) for prefix in allow)
+            )
+        ]
+        suppressed = before - len(findings)
+        if suppressed:
+            # Surface that suppression happened so it's visible in logs.
+            print(
+                f"[history_exposure] suppressed {suppressed} finding(s) "
+                f"from {len(allow)} allowlisted commit(s)",
+                file=sys.stderr,
+            )
+
     sev_rank = {"high": 0, "medium": 1, "low": 2}
     findings.sort(key=lambda f: (sev_rank[f.severity], f.pattern, f.ref))
     return {
@@ -184,9 +215,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--path", default=".", help="repo root")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--since", help="git log --since, e.g. 2026-01-01")
+    ap.add_argument(
+        "--allow-commits",
+        default="",
+        help="Comma-separated commit SHAs (or prefixes) to suppress. "
+             "Use for known-legacy exposures that can't be rewritten.",
+    )
     args = ap.parse_args(argv)
 
-    result = audit(args.path, since=args.since)
+    allow_commits = [c for c in args.allow_commits.split(",") if c.strip()]
+    result = audit(args.path, since=args.since, allow_commits=allow_commits)
     findings = result["findings"]
 
     if args.json:

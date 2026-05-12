@@ -34,9 +34,20 @@ on:
         required: false
         default: 'main'
         type: string
+      history_allow_commits:
+        description: 'Comma-separated commit SHAs to suppress in history-exposure audit (legacy exposures that cannot be rewritten)'
+        required: false
+        default: ''
+        type: string
+      run_github_native_gates:
+        description: 'Check Dependabot + CodeQL alert counts via GitHub API'
+        required: false
+        default: 'true'
+        type: string
 
 permissions:
   contents: read
+  security-events: read
 
 jobs:
   full-audit:
@@ -94,12 +105,41 @@ jobs:
       - name: History-exposure audit
         run: |
           set -e
-          agenticqa-audit-history --path . --json > history-audit.json
-          agenticqa-audit-history --path .
+          ALLOW="${{ inputs.history_allow_commits }}"
+          agenticqa-audit-history --path . --allow-commits "$ALLOW" --json > history-audit.json
+          agenticqa-audit-history --path . --allow-commits "$ALLOW"
           HIGH=$(python3 -c "import json,sys; print(sum(1 for f in json.load(open('history-audit.json'))['findings'] if f['severity']=='high'))")
           echo "::notice::history_audit_high=$HIGH"
           if [ "${{ inputs.fail_on_findings }}" = "true" ] && [ "$HIGH" -gt "0" ]; then
             echo "::error::History exposes $HIGH sensitive names"
+            exit 1
+          fi
+
+      - name: GitHub-native security gates (Dependabot + Code Scanning)
+        if: inputs.run_github_native_gates == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Dependabot alerts require `security-events: read` permission on
+          # the workflow. CodeQL alerts use the same scope.
+          set -e
+          HIGH_CRIT=$(gh api "/repos/${GITHUB_REPOSITORY}/dependabot/alerts?state=open&per_page=100" \
+            --jq '[.[] | select(.security_advisory.severity == "high" or .security_advisory.severity == "critical")] | length' 2>/dev/null || echo "skip")
+          if [ "$HIGH_CRIT" = "skip" ]; then
+            echo "::warning::Dependabot API not accessible (token may lack security_events read). Skipping gate."
+            exit 0
+          fi
+          echo "::notice::dependabot_high_or_critical=$HIGH_CRIT"
+          if [ "${{ inputs.fail_on_findings }}" = "true" ] && [ "$HIGH_CRIT" -gt "0" ]; then
+            echo "::error::$HIGH_CRIT open Dependabot alerts at high/critical severity"
+            exit 1
+          fi
+          MED=$(gh api "/repos/${GITHUB_REPOSITORY}/dependabot/alerts?state=open&per_page=100" \
+            --jq '[.[] | select(.security_advisory.severity == "medium")] | length')
+          echo "::notice::dependabot_medium=$MED"
+          MED_CEILING=10
+          if [ "${{ inputs.fail_on_findings }}" = "true" ] && [ "$MED" -gt "$MED_CEILING" ]; then
+            echo "::error::$MED open Dependabot medium alerts (ceiling=$MED_CEILING)"
             exit 1
           fi
 
