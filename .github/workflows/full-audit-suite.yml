@@ -122,9 +122,17 @@ jobs:
         run: |
           # Dependabot alerts require `security-events: read` permission on
           # the workflow. CodeQL alerts use the same scope.
+          # NOTE: `gh api` writes its error JSON to stdout *and* exits non-zero
+          # on 403. The naive `$(gh api ... || echo "skip")` concatenates the
+          # JSON with "skip", which breaks the integer compare below. Capture
+          # status separately so the skip path is unambiguous.
           set -e
-          HIGH_CRIT=$(gh api "/repos/${GITHUB_REPOSITORY}/dependabot/alerts?state=open&per_page=100" \
-            --jq '[.[] | select(.security_advisory.severity == "high" or .security_advisory.severity == "critical")] | length' 2>/dev/null || echo "skip")
+          if HIGH_CRIT=$(gh api "/repos/${GITHUB_REPOSITORY}/dependabot/alerts?state=open&per_page=100" \
+              --jq '[.[] | select(.security_advisory.severity == "high" or .security_advisory.severity == "critical")] | length' 2>/dev/null); then
+            :
+          else
+            HIGH_CRIT="skip"
+          fi
           if [ "$HIGH_CRIT" = "skip" ]; then
             echo "::warning::Dependabot API not accessible (token may lack security_events read). Skipping gate."
             exit 0
@@ -134,8 +142,16 @@ jobs:
             echo "::error::$HIGH_CRIT open Dependabot alerts at high/critical severity"
             exit 1
           fi
-          MED=$(gh api "/repos/${GITHUB_REPOSITORY}/dependabot/alerts?state=open&per_page=100" \
-            --jq '[.[] | select(.security_advisory.severity == "medium")] | length')
+          if MED=$(gh api "/repos/${GITHUB_REPOSITORY}/dependabot/alerts?state=open&per_page=100" \
+              --jq '[.[] | select(.security_advisory.severity == "medium")] | length' 2>/dev/null); then
+            :
+          else
+            MED="skip"
+          fi
+          if [ "$MED" = "skip" ]; then
+            echo "::warning::Dependabot medium-alert query failed — skipping medium gate."
+            exit 0
+          fi
           echo "::notice::dependabot_medium=$MED"
           MED_CEILING=10
           if [ "${{ inputs.fail_on_findings }}" = "true" ] && [ "$MED" -gt "$MED_CEILING" ]; then
