@@ -2,7 +2,11 @@
 
 One source of truth for how every OGIAM-governed agent works, across every
 Wolfpack Agency repo and every runtime. OGIAM is the agent identity + governance
-product; Wolfpack Agency owns the repos. Edit it here once; every agent picks up the change. Stop pasting rules
+product; Wolfpack Agency owns the repos.
+
+**New here? Read [RUNBOOK.md](./RUNBOOK.md)** — the coworker-facing guide to
+wiring your Claude Code to the constitution, changing a rule, integrating a new
+runtime, and proving it out. Edit it here once; every agent picks up the change. Stop pasting rules
 into sessions by hand.
 
 ## Files
