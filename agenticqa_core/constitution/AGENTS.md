@@ -1,4 +1,4 @@
-# Wolfpack Agent Constitution (human-readable) v1.0.0
+# OGIAM Agent Constitution (human-readable) v1.0.0
 
 This file is the single source of truth that used to be re-pasted into every
 feature session. Do not paste rules by hand anymore. Every runtime loads THIS

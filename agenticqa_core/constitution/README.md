@@ -1,7 +1,8 @@
-# Wolfpack Engineering Constitution
+# OGIAM Agent Constitution
 
-One source of truth for how every agent works, across every repo and every
-runtime. Edit it here once; every agent picks up the change. Stop pasting rules
+One source of truth for how every OGIAM-governed agent works, across every
+Wolfpack Agency repo and every runtime. OGIAM is the agent identity + governance
+product; Wolfpack Agency owns the repos. Edit it here once; every agent picks up the change. Stop pasting rules
 into sessions by hand.
 
 ## Files

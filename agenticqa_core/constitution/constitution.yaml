@@ -1,7 +1,8 @@
-# Wolfpack Engineering Constitution v1.0.0
-# Single machine-readable source of truth for how EVERY agent works across
-# every Wolfpack repo and every runtime (Claude Code, OpenAI, LangGraph,
-# Anthropic API, Instinct agents).
+# OGIAM Agent Constitution v1.0.0
+# Single machine-readable source of truth for how EVERY OGIAM-governed agent
+# works across every Wolfpack Agency repo and every runtime (Claude Code,
+# OpenAI, LangGraph, Anthropic API, the OGIAM agents in Instinct /admin/agents).
+# OGIAM is the agent identity + governance product; Wolfpack Agency owns the repos.
 #
 # This is the DEV-WORKFLOW constitution: the CTO's permanent engineering
 # directive expressed as enforceable rules. It is distinct from the AgenticQA

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Claude Code SessionStart hook: inject the Wolfpack constitution.
+Claude Code SessionStart hook: inject the OGIAM Agent Constitution.
 
 Emits the human-readable constitution plus the latest handoff for the repo the
 session opened in, as additionalContext, so every session begins with the rules
@@ -84,7 +84,7 @@ def main() -> int:
     cwd = event.get("cwd", "")
 
     parts = [
-        f"# Wolfpack Engineering Constitution v{loader.version()}",
+        f"# OGIAM Agent Constitution v{loader.version()}",
         "This is the operative rule set for this session. It is enforced by "
         "deterministic tooling (a PreToolUse guard + CI), not by model memory, "
         "so it holds regardless of which agent version is running.",

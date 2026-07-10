@@ -1,4 +1,4 @@
-# Wolfpack operator preferences v1.0.0
+# OGIAM operator preferences v1.0.0
 # Style + workflow defaults that layer on top of constitution.yaml. These are
 # how the CTO wants agents to behave; they are practices (Tier 3 weight), not
 # hard laws, but they are injected into every session so behavior is uniform.

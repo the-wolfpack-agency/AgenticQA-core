@@ -1,9 +1,10 @@
 """
-Wolfpack Engineering Constitution.
+OGIAM Agent Constitution.
 
-Single source of truth for how every agent works across every Wolfpack repo
-and every runtime. Import the loader to render the constitution for any agent
-runtime or to check a shell command against the machine-enforced rules.
+Single source of truth for how every OGIAM-governed agent works across every
+Wolfpack Agency repo and every runtime. Import the loader to render the
+constitution for any agent runtime or to check a shell command against the
+machine-enforced rules.
 
     from agenticqa_core.constitution import loader
 

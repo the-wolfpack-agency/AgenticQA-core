@@ -1,5 +1,5 @@
 """
-Tests for the Wolfpack Engineering Constitution.
+Tests for the OGIAM Agent Constitution.
 
 Covers: the loader renders, the machine-enforced rules in constitution.yaml stay
 in sync with the enforcement patterns in loader.py, and the deterministic gate
@@ -14,7 +14,7 @@ from agenticqa_core.constitution import loader
 def test_version_and_render():
     assert loader.version() != "unknown"
     md = loader.render_markdown()
-    assert "Wolfpack Agent Constitution" in md
+    assert "OGIAM Agent Constitution" in md
     assert "em dashes" in md.lower()
 
 
