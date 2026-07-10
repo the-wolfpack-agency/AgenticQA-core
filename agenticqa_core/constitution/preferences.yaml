@@ -1,0 +1,33 @@
+# Wolfpack operator preferences v1.0.0
+# Style + workflow defaults that layer on top of constitution.yaml. These are
+# how the CTO wants agents to behave; they are practices (Tier 3 weight), not
+# hard laws, but they are injected into every session so behavior is uniform.
+
+version: "1.0.0"
+
+identity:
+  commit_author_name: "Nicholas Homyk"
+  commit_author_email: "25436368+nhomyk@users.noreply.github.com"
+  never_use_emails:
+    - "nickhomyk@gmail.com"        # private, keep out of the project
+    - "homyk@thewolfpack.agency"   # not on GitHub, blocks Vercel deploys
+
+style:
+  em_dashes: forbidden
+  responses: terse
+  trailing_summaries: false
+  tone: "state results and decisions directly; recommend, do not survey"
+
+workflow:
+  finish_by: "commit and push, do not ask or wait for permission"
+  branch_policy: "work on a branch when the repo default is protected"
+  friction: "lowest-friction path first; you have terminal + DB access, do privileged work yourself"
+  handoff: "write demo/handoff-<date>.md via `npm run handoff` at session end"
+  ambiguity: "state the interpretation before acting; ask on business decisions"
+
+deploy_pointers:
+  # Per-brand specifics live in the memory graph; these are the fast facts.
+  wolfpack-apex: "push to main -> auto-deploy; verify /api/version sha before testing"
+  ogiam-site: "push to main -> auto-deploys ogiam.com in 1-2 min"
+  wolfpack-beyond: "push does NOT deploy; run `npx vercel --prod` from repo root"
+  wolfpack-porsche-weekend: "deploy via `npx vercel --prod`; branch feat/admin-dealer-os is prod; dashboard Redeploy ships the wrong commit"

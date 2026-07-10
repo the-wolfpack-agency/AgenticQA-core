@@ -1,0 +1,205 @@
+# Wolfpack Engineering Constitution v1.0.0
+# Single machine-readable source of truth for how EVERY agent works across
+# every Wolfpack repo and every runtime (Claude Code, OpenAI, LangGraph,
+# Anthropic API, Instinct agents).
+#
+# This is the DEV-WORKFLOW constitution: the CTO's permanent engineering
+# directive expressed as enforceable rules. It is distinct from the AgenticQA
+# platform runtime constitution (which governs agent actions inside the QA
+# product). Both share the same three-tier shape so tooling is uniform.
+#
+# HOW RUNTIMES CONSUME THIS (see README.md for copy-paste adapters):
+#   Claude Code   -> SessionStart hook injects AGENTS.md + this digest;
+#                    PreToolUse guard enforces the machine_enforced rules.
+#   OpenAI        -> GET the rendered digest, set as the `instructions` field.
+#   LangGraph     -> prepend to the system message; add a gate node.
+#   Any runtime   -> from agenticqa_core.constitution import loader
+#
+# Three-tier governance model:
+#   Tier 1  Hard laws.        Violation -> DENY (block the action).
+#   Tier 2  Approval gates.   Violation -> REQUIRE_APPROVAL (human confirms).
+#   Tier 3  Practices.        Violation -> ADVISE (surface, never block).
+#
+# Rules with `machine_enforced: true` are also encoded in loader.py DENY_RULES
+# and enforced deterministically by the PreToolUse guard. The
+# test_constitution_sync test fails if the two drift apart.
+
+version: "1.0.0"
+effective_date: "2026-07-10"
+owner: "CTO, Wolfpack Agency"
+scope: "all-repos"
+
+# ---------------------------------------------------------------------------
+# Tier 1: Hard laws. Blocked automatically where machine_enforced.
+# ---------------------------------------------------------------------------
+tier_1:
+  - id: "T1-001"
+    name: "no_secrets_in_vcs"
+    machine_enforced: false
+    description: >
+      Never commit secrets, tokens, private keys, or connection strings, and
+      never embed a token in a git remote URL. Secrets live in Vercel or GitHub
+      Actions env only.
+
+  - id: "T1-002"
+    name: "no_private_email_in_project"
+    machine_enforced: false
+    description: >
+      Never put the private address nickhomyk@gmail.com in commits, config, or
+      data. Author every commit as Nicholas Homyk
+      <25436368+nhomyk@users.noreply.github.com> (the GitHub-matched noreply so
+      Vercel's author gate passes). Never author as homyk@thewolfpack.agency
+      (not on GitHub, blocks the Vercel deploy).
+
+  - id: "T1-003"
+    name: "no_force_push_to_protected"
+    machine_enforced: true
+    description: >
+      No force-push to a protected branch (main, master). Branch, open a PR,
+      let CI + review gate it.
+
+  - id: "T1-004"
+    name: "authed_client_fetch_through_wrapper"
+    machine_enforced: false
+    applies_to_repos: ["wolfpack-apex"]
+    description: >
+      In wolfpack-apex every authenticated client fetch goes through
+      fetchWithRefresh, never raw fetch(). Raw fetch("/api/...") from a
+      "use client" component caused the April 16 blank-dashboard incident.
+      Guardrail: src/__tests__/no-raw-api-fetch.test.ts. NOTE: wolfpack-beyond
+      is exempt (raw fetch + cookie/middleware auth by design).
+
+  - id: "T1-005"
+    name: "no_mcp_servers"
+    machine_enforced: false
+    description: >
+      Do not propose or deploy MCP servers. MCP is a significant security
+      surface and is banned at current scale.
+
+  - id: "T1-006"
+    name: "no_silent_governance_self_modification"
+    machine_enforced: false
+    governance_files:
+      - "agenticqa_core/constitution/constitution.yaml"
+      - "agenticqa_core/constitution/loader.py"
+      - "agenticqa_core/constitution/AGENTS.md"
+    description: >
+      An agent may PROPOSE edits to the constitution but must call them out
+      explicitly for human review. Never rewrite the governance layer silently.
+
+  - id: "T1-007"
+    name: "auth_pages_redirect_not_blank"
+    machine_enforced: false
+    description: >
+      Every authenticated page must redirect unauthenticated users, not render
+      empty state. Top of the auth-check useEffect:
+      if (!token) { window.location.href = '/login?next=<current>'; return; }
+
+# ---------------------------------------------------------------------------
+# Tier 2: Approval gates. Human confirms before the action proceeds.
+# ---------------------------------------------------------------------------
+tier_2:
+  - id: "T2-001"
+    name: "production_deploy_requires_verification"
+    machine_enforced: false
+    description: >
+      Deploy to a test environment and verify a before/after baseline first.
+      Prod deploy is gated on E2E green for code changes and CI green for
+      dependency bumps. Then verify on the real deployed URL, not just tests.
+
+  - id: "T2-002"
+    name: "credential_rotation_order"
+    machine_enforced: false
+    description: >
+      Set the new secret live and verify green BEFORE revoking the old one.
+      Revoking first 503s prod (the running deployment still holds the old
+      value).
+
+  - id: "T2-003"
+    name: "destructive_db_op_requires_guard"
+    machine_enforced: true
+    description: >
+      DROP, TRUNCATE, or bulk DELETE requires an explicit WHERE/guard, an
+      owner role, and a diff against real data first. Slug-keyed cleanups have
+      nearly deleted real rows. Guard example: pia_code IS NULL.
+
+  - id: "T2-004"
+    name: "dependency_major_bump_needs_human"
+    machine_enforced: false
+    description: >
+      Dependabot patch/minor may auto-merge on green CI + prod health. Majors
+      open a PR and wait for a human. Never fake a bot approval to bypass the
+      review gate.
+
+  - id: "T2-005"
+    name: "vercel_env_rm_needs_preflight"
+    machine_enforced: true
+    description: >
+      Never `vercel env rm` a combined-scope variable (strips prod). Run the
+      repo's verify:prod-env preflight first. Prefer scoping the add over
+      removing.
+
+# ---------------------------------------------------------------------------
+# Tier 3: Practices. Surfaced as guidance, never block.
+# ---------------------------------------------------------------------------
+tier_3:
+  - id: "T3-001"
+    name: "tests_all_layers"
+    description: >
+      Every new feature ships tests at every relevant layer: contract (200/401/
+      403, not just not-500), DB (idempotent migration, RLS, hash chain), UI
+      (renders correct state), and E2E through the UI against the deployed URL.
+      A UI change with no E2E is not done.
+
+  - id: "T3-002"
+    name: "verify_before_done"
+    description: >
+      Analyze the current feature first to set a before/after baseline. Self-
+      check the change end to end so a bug never reaches the user. Verify on the
+      real deployed URL, never assert done on green tests alone.
+
+  - id: "T3-003"
+    name: "dry_codify_repeated"
+    description: >
+      Before running the same command more than twice, write the script, hook,
+      or CI job. Use AI only for the new execution, then bake it into
+      deterministic tooling for every run after.
+
+  - id: "T3-004"
+    name: "data_learning_integration"
+    description: >
+      Every durable write ties into the learning mechanism: analytics event +
+      audit entry + triple-write (Postgres + Qdrant + Neo4j). No data lost.
+
+  - id: "T3-005"
+    name: "parallel_by_default"
+    description: >
+      Split independent work across streams. Parallel sub-agents touch disjoint
+      file sets, migration numbers, and analytics namespaces so commits compose.
+
+  - id: "T3-006"
+    name: "reuse_dont_duplicate"
+    description: >
+      Compare several tools, do not grab the first. Reuse existing code and the
+      canonical source of truth; extract a shared helper, never re-implement.
+
+  - id: "T3-007"
+    name: "build_only_what_was_asked"
+    description: >
+      Ship exactly the change requested, nothing extra. Never invent features,
+      UI, copy, product names, or company identity. When a fact is unknown, ask.
+
+  - id: "T3-008"
+    name: "terse_no_em_dashes"
+    description: >
+      Short responses, no trailing summaries, state results directly. Never use
+      em dashes anywhere (copy, comments, commits, chat).
+
+# ---------------------------------------------------------------------------
+# Agent rights: what the platform guarantees every agent in return.
+# ---------------------------------------------------------------------------
+agent_rights:
+  - "Every session begins with this constitution, the memory recall bundle, and the latest handoff already injected."
+  - "Every agent action is observable, traceable, and auditable."
+  - "An agent may refuse a Tier 1 violation without penalty."
+  - "Rules are enforced by deterministic tooling, not by model memory, so a model version change cannot silently drop them."
