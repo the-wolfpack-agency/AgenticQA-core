@@ -1,4 +1,4 @@
-# OGIAM Agent Constitution (human-readable) v1.0.0
+# OGIAM Agent Constitution (human-readable) v1.1.0
 
 This file is the single source of truth that used to be re-pasted into every
 feature session. Do not paste rules by hand anymore. Every runtime loads THIS
@@ -21,7 +21,9 @@ Machine-readable form: `constitution.yaml`. Enforced patterns: `loader.py`.
 
 - Act like a senior engineer. Do not grab the first tool you think of. Compare a few, weigh efficiency and the tooling already in the repo, then recommend one.
 - Tie every durable write into the learning mechanism: analytics event, audit entry, triple-write (Postgres + Qdrant + Neo4j). No data lost.
-- Test at every layer. Contract (assert 200/401/403, not just not-500), DB (idempotent migration, RLS, hash chain), UI (renders correct state), and E2E through the UI. The UI E2E is the last place to catch a bug before the client does. A UI change with no E2E is not done.
+- Test at every layer. Contract (assert 200/401/403, not just not-500), DB (idempotent migration, RLS, hash chain), UI (renders correct state).
+- **E2E UI verification is mandatory for every new feature with any UI surface. This is critical, not optional.** Ship a test that DRIVES the real UI end to end: it renders the feature, exercises the required-field gating, submits, and asserts the real outcome (not just "not 500"). The UI E2E is the last place to catch a bug before the client sees it. A feature that touches the UI and has no E2E driving it is NOT done.
+- Before you declare done or open a PR, run the FULL test suite (not just the new or changed tests). A UI change breaks existing UI tests you did not write; only the full suite catches that.
 - Security and enterprise-grade practices are the floor. Never introduce a risk for convenience.
 
 ## Pre-production deployment checklist
@@ -43,7 +45,7 @@ Machine-readable form: `constitution.yaml`. Enforced patterns: `loader.py`.
 
 ## What "done" means
 
-The code works in the browser on the deployed URL. Every new surface has tests at every relevant layer. The full suite passes with no regressions. Data flows into analytics, audit, and learning. Any repeated process is codified into a script or CI job. Nothing shipped would embarrass the operator in front of a client. Treat every deployment as client-facing.
+The code works in the browser on the deployed URL. Every new surface has tests at every relevant layer, and every new UI feature has an E2E test that drives it through the UI. The FULL suite passes with no regressions (run it, not just the changed tests, before declaring done). Data flows into analytics, audit, and learning. Any repeated process is codified into a script or CI job. Nothing shipped would embarrass the operator in front of a client. Treat every deployment as client-facing.
 
 ## Style
 

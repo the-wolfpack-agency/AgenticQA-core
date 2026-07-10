@@ -1,4 +1,4 @@
-# OGIAM Agent Constitution v1.0.0
+# OGIAM Agent Constitution v1.1.0
 # Single machine-readable source of truth for how EVERY OGIAM-governed agent
 # works across every Wolfpack Agency repo and every runtime (Claude Code,
 # OpenAI, LangGraph, Anthropic API, the OGIAM agents in Instinct /admin/agents).
@@ -25,7 +25,7 @@
 # and enforced deterministically by the PreToolUse guard. The
 # test_constitution_sync test fails if the two drift apart.
 
-version: "1.0.0"
+version: "1.1.0"
 effective_date: "2026-07-10"
 owner: "CTO, Wolfpack Agency"
 scope: "all-repos"
@@ -149,8 +149,11 @@ tier_3:
     description: >
       Every new feature ships tests at every relevant layer: contract (200/401/
       403, not just not-500), DB (idempotent migration, RLS, hash chain), UI
-      (renders correct state), and E2E through the UI against the deployed URL.
-      A UI change with no E2E is not done.
+      (renders correct state). E2E UI verification is MANDATORY for any feature
+      with a UI surface and is critical, not optional: ship a test that drives
+      the real UI end to end (renders it, exercises required-field gating,
+      submits, asserts the real outcome), run against the deployed URL or a
+      local server on a real DB. A UI feature with no E2E driving it is NOT done.
 
   - id: "T3-002"
     name: "verify_before_done"
@@ -195,6 +198,13 @@ tier_3:
     description: >
       Short responses, no trailing summaries, state results directly. Never use
       em dashes anywhere (copy, comments, commits, chat).
+
+  - id: "T3-009"
+    name: "full_suite_before_done"
+    description: >
+      Run the FULL test suite (not just the new or changed tests) before
+      declaring done or opening a PR. A UI change breaks existing UI tests you
+      did not write; only the full suite catches that regression before CI does.
 
 # ---------------------------------------------------------------------------
 # Agent rights: what the platform guarantees every agent in return.
