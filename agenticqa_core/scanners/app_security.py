@@ -122,13 +122,101 @@ RE_WEBHOOK_SIG = re.compile(
 RE_RAW_FETCH_EXTERNAL = re.compile(
     r"""\bfetch\s*\(\s*['"]https?://(?!(?:localhost|127\.|0\.0\.0\.0))[^'"]+['"]"""
 )
-RE_SECRET_LOG = re.compile(
-    r"console\.(log|error|warn|info|debug)\([^)]*\b("
+RE_CONSOLE_CALL = re.compile(r"console\.(?:log|error|warn|info|debug)\s*\(")
+
+RE_SECRET_NAME = re.compile(
+    r"\b("
     r"password|token|secret|apiKey|api_key|authorization|access_key|"
     r"private_key|client_secret|stripe_secret|nextauth_secret|database_url"
     r")\b",
     re.IGNORECASE,
 )
+
+
+# A secret name used as a LABEL for a value: "token=" + tok, "secret: " + s.
+# The name is only literal text, but it introduces a value, so it still leaks.
+# Distinct from prose ABOUT config ("DATABASE_URL not set"), which leaks nothing.
+RE_SECRET_LABEL = re.compile(
+    r"\b("
+    r"password|token|secret|apiKey|api_key|authorization|access_key|"
+    r"private_key|client_secret|stripe_secret|nextauth_secret|database_url"
+    r")\b\s*[=:]",
+    re.IGNORECASE,
+)
+
+# Something dynamic must follow the label, or there is no value to leak
+# ("token: none" is just a message).
+RE_HAS_DYNAMIC = re.compile(r"\+|\$\{|,")
+
+
+def _call_args(text: str, open_paren: int, max_len: int = 800) -> str:
+    """Return the argument text of a call whose '(' is at open_paren.
+
+    Balanced-paren aware: a naive `[^)]*` stops at the first ')', which cuts off
+    at inner calls like sanitizeForLog(vin) and hides the real arguments.
+    """
+    depth = 0
+    end = min(len(text), open_paren + max_len)
+    for i in range(open_paren, end):
+        c = text[i]
+        if c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+            if depth == 0:
+                return text[open_paren + 1 : i]
+    return text[open_paren + 1 : end]
+
+
+def strip_literal_text(s: str) -> str:
+    """Blank the *text* inside string literals, keep `${...}` interpolations.
+
+    A8 asks "does a secret VALUE reach the log", so only code can answer it.
+    A secret NAME sitting in a message ("DATABASE_URL not set") leaks nothing,
+    but `${process.env.DATABASE_URL}` does — and that lives inside a literal
+    too, so the literal cannot simply be dropped wholesale.
+
+    Interpolations are copied through verbatim; everything else inside quotes
+    becomes spaces, which preserves offsets and keeps word boundaries intact.
+    """
+    out: list[str] = []
+    i, n = 0, len(s)
+    quote: str | None = None
+    while i < n:
+        c = s[i]
+        if quote is None:
+            out.append(" " if c in "\"'`" else c)
+            if c in "\"'`":
+                quote = c
+            i += 1
+            continue
+        # inside a literal
+        if c == "\\" and i + 1 < n:
+            out.append("  ")
+            i += 2
+            continue
+        if c == quote:
+            quote = None
+            out.append(" ")
+            i += 1
+            continue
+        if quote == "`" and c == "$" and i + 1 < n and s[i + 1] == "{":
+            depth, j = 0, i + 1
+            while j < n:
+                if s[j] == "{":
+                    depth += 1
+                elif s[j] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        j += 1
+                        break
+                j += 1
+            out.append(s[i:j])  # interpolation is code — keep it
+            i = j
+            continue
+        out.append(" ")
+        i += 1
+    return "".join(out)
 RE_OPEN_REDIRECT = re.compile(
     r"(?:NextResponse\.)?redirect\s*\(\s*[^,)]*\b(?:searchParams|query|req\.body|request\.body)"
 )
@@ -282,16 +370,29 @@ def scan_text(rel: str, basename: str, text: str, role: str) -> list[Finding]:
                 )
             )
 
-    # A8 — secret in console.*
-    for m in RE_SECRET_LOG.finditer(text):
-        if "audit-safe: A8" in text[max(0, m.start() - 400):m.end() + 200]:
+    # A8 — secret VALUE reaching console.*
+    # Precision: match the secret name only in the CODE of the call (identifiers
+    # and ${...} interpolations), never in literal message text. Flagging
+    # `console.log("DATABASE_URL not set")` is a false positive — the name is
+    # prose, no value is logged — and one such line held a caller repo's audit
+    # red on main for days.
+    for m in RE_CONSOLE_CALL.finditer(text):
+        args = _call_args(text, m.end() - 1)
+        # (a) the name appears in CODE — an identifier or a ${...} interpolation.
+        leaks = bool(RE_SECRET_NAME.search(strip_literal_text(args)))
+        # (b) the name labels a value that follows: console.error("token=" + tok).
+        if not leaks:
+            leaks = bool(RE_SECRET_LABEL.search(args) and RE_HAS_DYNAMIC.search(args))
+        if not leaks:
+            continue
+        if "audit-safe: A8" in text[max(0, m.start() - 400):m.start() + 200]:
             continue
         line = text[: m.start()].count("\n") + 1
         findings.append(
             Finding(
                 "A8", rel, line, "high",
                 "log call references a secret-shaped variable name — likely leaks the secret to logs",
-                text[m.start():m.end()][:140],
+                text[m.start():m.start() + 140],
             )
         )
 
