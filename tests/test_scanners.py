@@ -65,6 +65,63 @@ def test_app_security_webhook_route_without_signature_flags_a6():
     assert any(f.pattern == "A6" for f in findings)
 
 
+def test_app_security_a8_flags_a_logged_secret_value():
+    # True positive: the identifier is passed as a VALUE to the log call.
+    text = 'console.log("auth:", token);\n'
+    findings = app_security.scan_text("src/lib/x.ts", "x.ts", text, "lib")
+    assert any(f.pattern == "A8" for f in findings)
+
+
+def test_app_security_a8_flags_an_interpolated_secret():
+    # True positive: interpolation is code, even though it sits inside a literal.
+    text = "console.log(`token=${process.env.API_KEY}`);\n"
+    findings = app_security.scan_text("src/lib/x.ts", "x.ts", text, "lib")
+    assert any(f.pattern == "A8" for f in findings)
+
+
+def test_app_security_a8_ignores_a_secret_name_that_is_only_literal_text():
+    # False positive this guards: the secret NAME appears as prose inside the
+    # message, and the only interpolated value is a sanitized VIN. Nothing can
+    # leak. This exact line (wolfpack-auto background-generator.ts) held that
+    # repo's Security Audit red on main for days.
+    text = (
+        "console.log(\n"
+        "  `[background] DATABASE_URL not set; skipping for ${sanitizeForLog(vin)}`,\n"
+        ");\n"
+    )
+    findings = app_security.scan_text("src/lib/x.ts", "x.ts", text, "lib")
+    assert not any(f.pattern == "A8" for f in findings)
+
+
+def test_app_security_a8_ignores_secret_name_in_a_plain_string():
+    # DATABASE_URL is in the name list, so this only passes because the name is
+    # prose rather than a label introducing a value.
+    text = 'console.warn("DATABASE_URL is not configured; skipping");\n'
+    findings = app_security.scan_text("src/lib/x.ts", "x.ts", text, "lib")
+    assert not any(f.pattern == "A8" for f in findings)
+
+
+def test_app_security_a8_flags_a_secret_label_concatenated_to_a_value():
+    # The name is ONLY literal text and the identifier (`tok`) is not
+    # secret-shaped — but "token=" labels the value being logged, so it leaks.
+    # Guards the recall this precision fix could otherwise have dropped.
+    text = 'console.error("token=" + tok);\n'
+    findings = app_security.scan_text("src/lib/x.ts", "x.ts", text, "lib")
+    assert any(f.pattern == "A8" for f in findings)
+
+
+def test_app_security_a8_ignores_a_secret_label_with_no_value_after_it():
+    text = 'console.log("token: none");\n'
+    findings = app_security.scan_text("src/lib/x.ts", "x.ts", text, "lib")
+    assert not any(f.pattern == "A8" for f in findings)
+
+
+def test_app_security_a8_still_honours_the_audit_safe_pragma():
+    text = '// audit-safe: A8\nconsole.log("auth:", token);\n'
+    findings = app_security.scan_text("src/lib/x.ts", "x.ts", text, "lib")
+    assert not any(f.pattern == "A8" for f in findings)
+
+
 def test_app_security_hardcoded_secret_flags_a16():
     # Build the test-fixture key dynamically so GitHub secret-scanning
     # doesn't treat this test source as a leaked secret.
