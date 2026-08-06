@@ -1,4 +1,4 @@
-# OGIAM Agent Constitution (human-readable) v1.2.0
+# OGIAM Agent Constitution (human-readable) v1.2.1
 
 This file is the single source of truth that used to be re-pasted into every
 feature session. Do not paste rules by hand anymore. Every runtime loads THIS
@@ -42,6 +42,19 @@ Machine-readable form: `constitution.yaml`. Enforced patterns: `loader.py`.
   local tool is unavailable. Ask the operator, or check properly. Standing up a
   cloud resource because a local one seemed unavailable spends their money on a
   problem they did not have.
+- **Refresh before you report state.** Never describe the state of a branch, PR,
+  deploy or database from a cached local ref. `git fetch` first, or query the
+  live source. Telling the operator something is unmerged when they merged it an
+  hour ago wastes their time and costs their trust in every other claim in the
+  same report.
+- **CI minutes are the operator's money.** Reproduce a failing check locally
+  before pushing again. Never use a CI run to learn something a local run
+  answers, and never push a speculative fix to see what happens. A red required
+  check is fixed before any new work starts on that branch. If it is red because
+  the difference is deliberate and permanent, record it as an accepted deviation
+  so the gate can reach zero, and say so. Never tune a threshold to make red go
+  away. Open dependabot PRs that cannot merge re-run the whole suite on every
+  rebase: close them.
 - **Name what you did not finish.** A report that lists only what worked is a
   report the operator cannot act on. State the residual failure rate, the thing
   still unexplained, and what you would do next.
