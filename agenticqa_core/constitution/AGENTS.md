@@ -1,4 +1,4 @@
-# OGIAM Agent Constitution (human-readable) v1.2.1
+# OGIAM Agent Constitution (human-readable) v1.2.2
 
 This file is the single source of truth that used to be re-pasted into every
 feature session. Do not paste rules by hand anymore. Every runtime loads THIS
@@ -53,6 +53,16 @@ Machine-readable form: `constitution.yaml`. Enforced patterns: `loader.py`.
   live source. Telling the operator something is unmerged when they merged it an
   hour ago wastes their time and costs their trust in every other claim in the
   same report.
+- **Use the parallel verifier.** Run the fast checks that answer in seconds
+  (types, unit, the one spec you changed), then push and let CI run the build,
+  the full suite and the E2E concurrently. A local production build between
+  every edit is minutes of the operator watching nothing happen, serially.
+  Reserve it for reproducing a failure that only occurs in a production build.
+- **Automate the check the compiler cannot do.** When a mistake is only caught
+  by a slow stage, ship a check that catches the CLASS in the fast gate and
+  names the offending symbol, then prove it by reintroducing the bug and
+  watching it fail. Framework rules the type-checker cannot see are the common
+  case, and each costs a full build cycle every time someone rediscovers it.
 - **CI minutes are the operator's money.** Reproduce a failing check locally
   before pushing again. Never use a CI run to learn something a local run
   answers, and never push a speculative fix to see what happens. A red required

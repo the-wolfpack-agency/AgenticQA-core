@@ -1,4 +1,4 @@
-# OGIAM Agent Constitution v1.2.1
+# OGIAM Agent Constitution v1.2.2
 # Single machine-readable source of truth for how EVERY OGIAM-governed agent
 # works across every Wolfpack Agency repo and every runtime (Claude Code,
 # OpenAI, LangGraph, Anthropic API, the OGIAM agents in Instinct /admin/agents).
@@ -25,7 +25,7 @@
 # and enforced deterministically by the PreToolUse guard. The
 # test_constitution_sync test fails if the two drift apart.
 
-version: "1.2.1"
+version: "1.2.2"
 effective_date: "2026-07-10"
 owner: "CTO, Wolfpack Agency"
 scope: "all-repos"
@@ -202,6 +202,33 @@ tier_2:
       Every completion report names what is NOT finished: the residual failure
       rate, the thing still unexplained, and the next step. A report listing only
       successes is one the operator cannot act on.
+
+  - id: "T2-013"
+    name: "use_the_parallel_verifier"
+    machine_enforced: false
+    description: >
+      Reproduce locally, but do not SERIALISE on a local production build. A
+      full local build plus suite is minutes of the operator watching nothing
+      happen, repeated per change; CI runs the build, the unit suite and the E2E
+      concurrently while you do other work. Run the fast local checks that
+      answer in seconds (types, unit, the targeted spec), push, and let CI be the
+      slow verifier. Reserve the local production build for reproducing a
+      failure that only happens in one, which is the case it exists for. Pushing
+      a change whose fast checks pass is not sloppiness; grinding a five-minute
+      build between every edit is not rigour.
+
+  - id: "T2-014"
+    name: "automate_the_check_the_compiler_cannot_do"
+    machine_enforced: false
+    description: >
+      When a mistake is only caught by a slow stage (a production build, a
+      deploy, an intermittent E2E), the fix is not to remember it. Ship a check
+      that catches the CLASS in the fast gate, in milliseconds, and name the
+      offending symbol in its message. Then prove it by reintroducing the exact
+      bug and watching it fail: a guardrail nobody has seen fail is a guardrail
+      nobody knows works. Framework rules the type-checker cannot see are the
+      common case, and each one costs a full build cycle every time somebody
+      rediscovers it.
 
   - id: "T2-012"
     name: "ci_cost_discipline"
