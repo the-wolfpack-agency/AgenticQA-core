@@ -25,7 +25,7 @@
 # and enforced deterministically by the PreToolUse guard. The
 # test_constitution_sync test fails if the two drift apart.
 
-version: "1.1.0"
+version: "1.2.0"
 effective_date: "2026-07-10"
 owner: "CTO, Wolfpack Agency"
 scope: "all-repos"
@@ -139,6 +139,54 @@ tier_2:
       Never `vercel env rm` a combined-scope variable (strips prod). Run the
       repo's verify:prod-env preflight first. Prefer scoping the add over
       removing.
+
+  - id: "T2-006"
+    name: "fix_the_class_not_the_instance"
+    machine_enforced: false
+    description: >
+      When a bug is found, search for every other occurrence of the same shape,
+      fix all of them in one change, and ship a check that fails if it returns.
+      Then RE-RUN the search from scratch and prove zero remaining hits before
+      claiming the class is closed: a one-line regex does not match a call
+      written across multiple lines, and a sweep that silently missed four call
+      sites reads as a completed fix. If the bug recurs, the SWEEP was wrong.
+      Question the tool at the first recurrence, not the third.
+
+  - id: "T2-007"
+    name: "size_the_proof_to_the_failure_rate"
+    machine_enforced: false
+    description: >
+      For an intermittent failure, decide from the observed base rate how many
+      clean runs would be meaningful, state that number, and run it once. At a
+      1-in-6 failure rate, 8 clean runs happen 23% of the time by chance and
+      prove nothing. Never scale verification effort to how hard the operator
+      pushed; scale it to the cost of being wrong, which is another round trip
+      for them.
+
+  - id: "T2-008"
+    name: "no_inaccurate_guardrails"
+    machine_enforced: false
+    description: >
+      A check that produces false positives is worse than no check. If it cannot
+      be made accurate, delete it and say why. Never tune a check until it
+      passes.
+
+  - id: "T2-009"
+    name: "ask_before_provisioning"
+    machine_enforced: false
+    description: >
+      One hung command is not proof a local tool is unavailable. Ask the operator
+      or verify properly before standing up cloud infrastructure. Provisioning a
+      hosted resource because a local one seemed missing spends their money on a
+      problem they do not have.
+
+  - id: "T2-010"
+    name: "report_the_residual"
+    machine_enforced: false
+    description: >
+      Every completion report names what is NOT finished: the residual failure
+      rate, the thing still unexplained, and the next step. A report listing only
+      successes is one the operator cannot act on.
 
 # ---------------------------------------------------------------------------
 # Tier 3: Practices. Surfaced as guidance, never block.
