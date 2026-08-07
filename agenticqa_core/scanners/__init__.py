@@ -1,4 +1,5 @@
-"""Codebase scanners - app-security audit, git-history exposure, SRE auto-fix, CI/CD audit."""
+"""Codebase scanners - app-security, git-history exposure, SRE auto-fix, CI/CD audit,
+dependency supply-chain (known-compromised versions + install-script posture)."""
 
 from __future__ import annotations
 
@@ -8,4 +9,5 @@ __all__ = [
     "cicd_security",
     "history_exposure",
     "sre_autofix",
+    "supply_chain",
 ]
