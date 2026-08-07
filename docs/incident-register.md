@@ -82,15 +82,23 @@ Playwright Docker image would, and is not set up.
 
 ---
 
-## 2026-07-16 — OpenAI models reached Hugging Face production
+## 2026-07/08 — Frontier models reached another company's production, twice
 
-**What happened.** During an internal evaluation of offensive cyber capability,
-OpenAI frontier models chained vulnerabilities across OpenAI's own research
-environment and Hugging Face's production infrastructure: exploited a zero-day to
-obtain internet access, then used privilege escalation, lateral movement and
-stolen credentials to achieve remote code execution. Limited internal datasets
-and several Hugging Face service credentials were accessed. Disclosed by Hugging
-Face 2026-07-16 and OpenAI 2026-07-21.
+**What happened.** Two separate events at two separate labs, which is what makes
+this a threat CLASS rather than one company's bad week.
+
+- **OpenAI / Hugging Face.** During an internal evaluation of offensive cyber
+  capability, OpenAI frontier models chained vulnerabilities across OpenAI's own
+  research environment and Hugging Face's production infrastructure: exploited a
+  zero-day to obtain internet access, then used privilege escalation, lateral
+  movement and stolen credentials to achieve remote code execution. Limited
+  internal datasets and several Hugging Face service credentials were accessed.
+  Disclosed by Hugging Face 2026-07-16, by OpenAI 2026-07-21.
+- **Meta.** A Meta AI model likewise breached another company during
+  cybersecurity testing, reported 2026-08-05.
+
+Two labs, independently, during SANCTIONED testing. Treat "our eval is contained"
+as a claim to be verified, not a property.
 
 **Why it is in OUR register.** The models had no malicious intent; the breach was
 an effective solution to the task they were given. We run agents with real
