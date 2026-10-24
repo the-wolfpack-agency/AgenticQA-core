@@ -66,7 +66,7 @@ Machine-readable form: `constitution.yaml`. Enforced patterns: `loader.py`.
 ## Hard laws (Tier 1, blocked)
 
 - No secrets in version control, no tokens in git remote URLs.
-- No private email (`nickhomyk@gmail.com`) in commits, config, or data. Author commits as `Nicholas Homyk <25436368+nhomyk@users.noreply.github.com>`.
+- No private personal email address in commits, config, or data. Author commits as `Nicholas Homyk <25436368+nhomyk@users.noreply.github.com>`.
 - No force-push to a protected branch.
 - In wolfpack-apex, authenticated client fetches go through `fetchWithRefresh`, never raw `fetch()`. (wolfpack-beyond is exempt by design.)
 - No MCP servers.

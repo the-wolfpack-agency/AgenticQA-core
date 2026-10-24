@@ -9,7 +9,8 @@ identity:
   commit_author_name: "Nicholas Homyk"
   commit_author_email: "25436368+nhomyk@users.noreply.github.com"
   never_use_emails:
-    - "nickhomyk@gmail.com"        # private, keep out of the project
+    # The CTO's private personal address is deliberately NOT written here:
+    # this repo is public, so naming it to forbid it would publish it.
     - "homyk@thewolfpack.agency"   # not on GitHub, blocks Vercel deploys
 
 style:
