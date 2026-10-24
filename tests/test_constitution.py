@@ -60,3 +60,19 @@ def test_ordinary_commands_are_allowed():
         "npx vercel --prod",
     ]:
         assert loader.check_bash_command(cmd).decision == "allow", cmd
+
+
+def test_constitution_never_publishes_a_personal_email_address():
+    # This repo is public and the constitution is copied into other public repos
+    # and injected into model prompts. A rule that names the private address in
+    # order to forbid it publishes it. Allowed: the GitHub noreply address and the
+    # company domain. Anything else that looks like an email fails.
+    import re
+    from pathlib import Path
+
+    allowed = re.compile(r"@(users\.noreply\.github\.com|thewolfpack\.agency|anthropic\.com)$", re.I)
+    root = Path(loader.__file__).parent
+    texts = [loader.render_markdown()] + [p.read_text() for p in root.rglob("*") if p.suffix in {".md", ".yaml", ".yml", ".py"}]
+    found = {m for t in texts for m in re.findall(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+", t)}
+    leaked = sorted(e for e in found if not allowed.search(e))
+    assert leaked == [], f"personal email addresses in the constitution: {leaked}"

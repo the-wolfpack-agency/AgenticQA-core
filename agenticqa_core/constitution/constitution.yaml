@@ -46,7 +46,7 @@ tier_1:
     name: "no_private_email_in_project"
     machine_enforced: false
     description: >
-      Never put the private address nickhomyk@gmail.com in commits, config, or
+      Never put the CTO's private personal email address in commits, config, or
       data. Author every commit as Nicholas Homyk
       <25436368+nhomyk@users.noreply.github.com> (the GitHub-matched noreply so
       Vercel's author gate passes). Never author as homyk@thewolfpack.agency
